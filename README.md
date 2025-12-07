@@ -50,7 +50,7 @@ uv sync
       "command": "uv",
       "args": [
         "--directory",
-        "D:/Work/Server/pdf-mcp-main", 
+        "/absolute/path/to/mcp-pdf-flow", 
         "run",
         "simple-pdf"
       ],
