@@ -154,13 +154,15 @@ async def get_pdf_metadata(file_path: str):
     except Exception as e:
         return [types.TextContent(type="text", text=f"Error processing PDF metadata: {str(e)}")]
 
+import json
+
 async def extract_content(file_path: str, page_range: str = "1", keyword: str = None, format: str = "text", include_text: bool = True, include_images: bool = False, use_local_images_only: bool = True):
     """
     提取PDF指定页面的文本和图片。
     :param file_path: PDF文件路径
     :param page_range: 页码范围，例如 "1-5", "1,3,5" (从1开始)，或 "all" 提取所有页面
     :param keyword: 关键词，如果提供，则仅提取包含该关键词的页面（忽略 page_range）
-    :param format: 输出格式，'text' (默认) 或 'markdown'
+    :param format: 输出格式，'text' (默认), 'markdown' 或 'json'
     :param use_local_images_only: 如果为True，图片仅保存到本地并在文本中引用路径，不返回Base64数据（避免上下文溢出）
     :return: 包含文本和图片的列表
     """
@@ -168,6 +170,12 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
         return [types.TextContent(type="text", text=f"Error: 文件不存在 - {file_path}")]
 
     result_content = []
+    
+    # 存储 JSON 格式的结构化数据
+    json_data = {
+        "file_path": file_path,
+        "pages": []
+    }
     
     try:
         doc = fitz.open(file_path)
@@ -177,7 +185,8 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
         
         # 1. 如果指定了关键词，优先按关键词搜索
         if keyword and keyword.strip():
-            result_content.append(types.TextContent(type="text", text=f"正在搜索关键词: '{keyword}'...\n"))
+            if format != 'json':
+                result_content.append(types.TextContent(type="text", text=f"正在搜索关键词: '{keyword}'...\n"))
             found_pages = []
             for i in range(total_pages):
                 page = doc[i]
@@ -214,8 +223,9 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                     # 解析失败默认提取第一页
                     pages_to_extract = [0]
 
-        summary_text = f"正在处理文件: {file_path}\n页码范围: {page_range} (共 {len(pages_to_extract)} 页)\n内容类型: {'文本' if include_text else ''}{'/' if include_text and include_images else ''}{'图片' if include_images else ''}\n"
-        result_content.append(types.TextContent(type="text", text=summary_text))
+        if format != 'json':
+            summary_text = f"正在处理文件: {file_path}\n页码范围: {page_range} (共 {len(pages_to_extract)} 页)\n内容类型: {'文本' if include_text else ''}{'/' if include_text and include_images else ''}{'图片' if include_images else ''}\n"
+            result_content.append(types.TextContent(type="text", text=summary_text))
 
         # 准备图片输出目录
         pdf_filename = os.path.basename(file_path)
@@ -232,6 +242,12 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
             page_num = i + 1
             page = doc[i]
             
+            page_data = {
+                "page": page_num,
+                "text": "",
+                "images": []
+            }
+            
             # 存储当前页的图片路径，用于插入到 Markdown
             page_image_paths = []
             image_content_objects = []
@@ -242,7 +258,8 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                 if image_list:
                     if not has_images:
                         has_images = True
-                        result_content.append(types.TextContent(type="text", text=f"\n[图片保存目录: {output_dir}]\n"))
+                        if format != 'json':
+                            result_content.append(types.TextContent(type="text", text=f"\n[图片保存目录: {output_dir}]\n"))
                     
                     for j, img in enumerate(image_list):
                         try:
@@ -259,17 +276,32 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                             # 记录路径
                             page_image_paths.append(img_filename)
                             
-                            # 如果需要返回 Base64，则创建 ImageContent 对象
+                            # 记录 JSON 数据
+                            img_info = {
+                                "filename": img_filename,
+                                "local_path": img_path,
+                                "rel_path": f"extracted_images/{pdf_name_no_ext}/{img_filename}"
+                            }
+                            
+                            # 如果需要返回 Base64
                             if not use_local_images_only:
                                 img_b64 = base64.b64encode(image_bytes).decode('utf-8')
-                                image_content_objects.append(types.ImageContent(
-                                    type="image",
-                                    data=img_b64,
-                                    mimeType=f"image/{ext}"
-                                ))
-                                result_content.append(types.TextContent(type="text", text=f"  - Saved: {img_filename}\n"))
+                                img_info["base64"] = img_b64
+                                img_info["mime_type"] = f"image/{ext}"
+                                
+                                if format != 'json':
+                                    image_content_objects.append(types.ImageContent(
+                                        type="image",
+                                        data=img_b64,
+                                        mimeType=f"image/{ext}"
+                                    ))
+                                    result_content.append(types.TextContent(type="text", text=f"  - Saved: {img_filename}\n"))
+                            
+                            page_data["images"].append(img_info)
+                            
                         except Exception as img_err:
-                            result_content.append(types.TextContent(type="text", text=f"  Warning: Failed to extract image {j+1}: {img_err}\n"))
+                            if format != 'json':
+                                result_content.append(types.TextContent(type="text", text=f"  Warning: Failed to extract image {j+1}: {img_err}\n"))
 
             # 2. 提取文本
             if include_text:
@@ -332,6 +364,9 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                     last_bbox = curr_bbox
                 safe_text = full_page_text.encode('utf-8', errors='replace').decode('utf-8')
                 
+                # 记录纯文本到 JSON
+                page_data["text"] = safe_text
+                
                 # 在文本末尾追加图片引用 (Markdown 模式)
                 if format == 'markdown' and page_image_paths:
                     safe_text += "\n\n"
@@ -346,17 +381,27 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
 
                 if format == 'markdown':
                     page_header = f"## Page {page_num}\n\n"
-                else:
+                elif format == 'text':
                     page_header = f"\n{'='*20} Page {page_num} {'='*20}\n"
+                else:
+                    page_header = ""
                 
-                page_content = page_header + (safe_text if safe_text.strip() else "(No text content)") + "\n"
-                result_content.append(types.TextContent(type="text", text=page_content))
+                if format != 'json':
+                    page_content = page_header + (safe_text if safe_text.strip() else "(No text content)") + "\n"
+                    result_content.append(types.TextContent(type="text", text=page_content))
             
-            # 3. 添加图片对象 (如果启用 Base64 返回)
-            if not use_local_images_only and image_content_objects:
+            # 添加到 JSON 结果列表
+            json_data["pages"].append(page_data)
+            
+            # 3. 添加图片对象 (如果启用 Base64 返回 且非 JSON 模式)
+            if format != 'json' and not use_local_images_only and image_content_objects:
                 result_content.extend(image_content_objects)
 
         doc.close()
+        
+        # 如果是 JSON 格式，返回整个 JSON 字符串
+        if format == 'json':
+            return [types.TextContent(type="text", text=json.dumps(json_data, ensure_ascii=False, indent=2))]
         
     except Exception as e:
         result_content.append(types.TextContent(type="text", text=f"Error processing PDF: {str(e)}"))
@@ -387,8 +432,8 @@ async def handle_list_tools() -> list[types.Tool]:
                     },
                     "format": {
                         "type": "string",
-                        "enum": ["text", "markdown"],
-                        "description": "输出格式，可选 'text' (默认) 或 'markdown'，markdown 格式更适合 LLM 阅读",
+                        "enum": ["text", "markdown", "json"],
+                        "description": "输出格式，可选 'text' (默认), 'markdown' 或 'json'，markdown 格式更适合 LLM 阅读，json 格式适合程序化处理",
                         "default": "text"
                     },
                     "include_text": {

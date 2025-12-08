@@ -120,6 +120,7 @@ Core tool for extracting PDF content.
 *   `format` (Optional): Output format.
     *   `"text"` (Default): Plain text extraction.
     *   `"markdown"`: **Recommended**. Smartly identifies headers and paragraphs, suitable for LLM reading.
+    *   `"json"`: Returns structured JSON data containing text and image information for each page, suitable for programmatic processing.
 *   `include_text` (Optional): Whether to extract text, default is `true`.
 *   `include_images` (Optional): Whether to extract images, default is `false`.
 *   `use_local_images_only` (Optional): Image processing mode, default is `true`.

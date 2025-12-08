@@ -120,6 +120,7 @@ uv sync
 *   `format` (可选): 输出格式。
     *   `"text"` (默认): 纯文本提取。
     *   `"markdown"`: **推荐**。智能识别标题和段落，适合 LLM 阅读。
+    *   `"json"`: 返回结构化 JSON 数据，包含每一页的文本和图片信息，适合程序化处理。
 *   `include_text` (可选): 是否提取文本，默认为 `true`。
 *   `include_images` (可选): 是否提取图片，默认为 `false`。
 *   `use_local_images_only` (可选): 图片处理模式，默认为 `true`。
