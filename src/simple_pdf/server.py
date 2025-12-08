@@ -174,6 +174,14 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
     # 存储 JSON 格式的结构化数据
     json_data = {
         "file_path": file_path,
+        "meta": {
+            "page_range": page_range,
+            "format": format,
+            "include_text": include_text,
+            "include_images": include_images,
+            "use_local_images_only": use_local_images_only,
+            "note": "To get Base64 image data, set 'use_local_images_only' to false." if use_local_images_only and include_images else "Base64 image data included."
+        },
         "pages": []
     }
     
