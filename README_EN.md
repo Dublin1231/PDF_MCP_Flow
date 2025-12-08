@@ -103,6 +103,12 @@ Add the following content (Please **ensure** to change the path to your actual l
 >
 > **Claude**: (Automatically calls the `batch_extract_pdf_content` tool)
 
+#### 5. Batch Process with Custom Output Directories
+> **User**: "Batch process PDFs in `D:\Docs`, save Markdown to `D:\Output\MD` and images to `D:\Output\Images`."
+>
+> **Claude**: (Calls `batch_extract_pdf_content` with `custom_output_dir="D:\\Output\\MD"`, `custom_image_output_dir="D:\\Output\\Images"`)
+
+
 ---
 
 ## 📖 Tool List
@@ -139,6 +145,8 @@ Batch extracts PDF files in a specified directory.
 **Parameters:**
 *   `directory` (Required): Absolute path of the root directory to search.
 *   `pattern` (Optional): File matching pattern, default is `"**/*.pdf"` (supports recursive search).
+*   `custom_output_dir` (Optional): Specifies the output directory for Markdown/JSON files. If omitted, saves in the same directory as the PDF file.
+*   `custom_image_output_dir` (Optional): Specifies the root output directory for images. If omitted, saves in an `extracted_images` folder within the PDF file's directory.
 *   `format` (Optional): Output format, default is `"markdown"`.
 *   `include_text` (Optional): Whether to extract text, default is `true`.
 *   `include_images` (Optional): Whether to extract images, default is `false`.

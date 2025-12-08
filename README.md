@@ -104,6 +104,12 @@ uv sync
 >
 > **Claude**: (自动调用 `batch_extract_pdf_content` 工具)
 
+#### 5. 批量处理并指定输出目录
+> **用户**: "批量处理 `D:\Docs` 下的 PDF，将 Markdown 存到 `D:\Output\MD`，图片存到 `D:\Output\Images`。"
+>
+> **Claude**: (调用 `batch_extract_pdf_content`，参数 `custom_output_dir="D:\\Output\\MD"`, `custom_image_output_dir="D:\\Output\\Images"`)
+
+
 ---
 
 ## 📖 工具列表
@@ -135,12 +141,14 @@ uv sync
     *   `false`: 返回图片的 Base64 数据流，可直接预览，但消耗大量 Token。
 
 ### 2. `batch_extract_pdf_content`
-批量提取指定目录下的 PDF 文件。
+批量处理指定目录下的所有 PDF 文件。
 
 **参数：**
 *   `directory` (必填): 要搜索的根目录绝对路径。
-*   `pattern` (可选): 文件匹配模式，默认为 `"**/*.pdf"`（支持递归搜索）。
-*   `format` (可选): 输出格式，默认为 `"markdown"`。
+*   `pattern` (可选): 文件匹配模式，默认为 `**/*.pdf` (支持递归)。
+*   `custom_output_dir` (可选): 指定 Markdown/JSON 文件的输出目录。如果不填，默认保存在 PDF 文件同级目录。
+*   `custom_image_output_dir` (可选): 指定图片的输出根目录。如果不填，默认保存在 PDF 文件同级目录下的 `extracted_images` 文件夹中。
+*   `format` (可选): 输出格式，支持 `markdown` (默认), `json`, `text`。
 *   `include_text` (可选): 是否提取文本，默认为 `true`。
 *   `include_images` (可选): 是否提取图片，默认为 `false`。
 *   `use_local_images_only` (可选): 图片处理模式，默认为 `true`。
@@ -151,7 +159,7 @@ uv sync
 **参数：**
 *   `file_path` (必填): PDF 文件的绝对路径。
 
-### 3. `convert_markdown_to_docx`
+### 4. `convert_markdown_to_docx`
 将 Markdown 内容转换为 Word 文档。
 
 **参数：**
@@ -160,24 +168,13 @@ uv sync
     *   *注意*: 这里需要填写**你希望保存的新文件路径**。
     *   *示例*: `D:\Documents\report_output.docx`
 
-### 4. `convert_docx_to_pdf`
+### 5. `convert_docx_to_pdf`
 将 Word 文档转换为 PDF 文件。
 
 **参数：**
 *   `docx_path` (必填): 输入的 .docx 文件绝对路径。
 *   `pdf_path` (可选): 输出 .pdf 文件的绝对路径。
     *   如果不提供，将在原 docx 文件同目录下生成同名 pdf 文件。
-
-### 5. `batch_extract_pdf_content`
-批量处理指定目录下的所有 PDF 文件。
-
-**参数：**
-*   `directory` (必填): 要搜索的根目录绝对路径。
-*   `pattern` (可选): 文件匹配模式，默认为 `**/*.pdf` (支持递归)。
-*   `format` (可选): 输出格式，默认为 `markdown`。
-*   `include_text` (可选): 是否提取文本，默认为 `true`。
-*   `include_images` (可选): 是否提取图片，默认为 `false`。
-*   `use_local_images_only` (可选): 图片处理模式，默认为 `true`。
 
 
 ## 📂 输出目录结构

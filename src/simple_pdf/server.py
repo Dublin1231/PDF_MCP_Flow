@@ -437,14 +437,17 @@ async def batch_extract_pdf_content(
     format: str = "markdown",
     include_text: bool = True,
     include_images: bool = False,
-    use_local_images_only: bool = True
+    use_local_images_only: bool = True,
+    custom_output_dir: str = None,
+    custom_image_output_dir: str = None
 ):
     """
-    批量提取指定目录下的PDF文件。
+    批量处理指定目录下的PDF文件。
     """
-    if not os.path.exists(directory):
+    if not os.path.isdir(directory):
         return [types.TextContent(type="text", text=f"Error: 目录不存在 - {directory}")]
-
+    
+    # 支持递归搜索
     search_path = os.path.join(directory, pattern)
     files = glob.glob(search_path, recursive=True)
     
@@ -463,15 +466,52 @@ async def batch_extract_pdf_content(
             pdf_name = os.path.basename(pdf_path)
             summary.append(f"Processing: {pdf_name}...")
             
-            # 确定输出路径
+            # 确定源文件信息
             pdf_dir = os.path.dirname(pdf_path)
             pdf_name_no_ext = os.path.splitext(pdf_name)[0]
             
             output_ext = "json" if format == "json" else "md" if format == "markdown" else "txt"
-            output_file_path = os.path.join(pdf_dir, f"{pdf_name_no_ext}.{output_ext}")
             
-            # 图片输出路径: pdf_dir/extracted_images/pdf_name
-            img_out_dir = os.path.join(pdf_dir, "extracted_images")
+            # 1. 确定主文件输出路径
+            if custom_output_dir:
+                os.makedirs(custom_output_dir, exist_ok=True)
+                final_output_dir = custom_output_dir
+            else:
+                final_output_dir = pdf_dir
+                
+            output_file_path = os.path.join(final_output_dir, f"{pdf_name_no_ext}.{output_ext}")
+            
+            # 2. 确定图片输出路径和引用基准
+            image_link_base = "extracted_images" # 默认值
+            
+            if custom_image_output_dir:
+                os.makedirs(custom_image_output_dir, exist_ok=True)
+                # 使用自定义目录下的子目录，避免文件冲突
+                img_out_dir = os.path.join(custom_image_output_dir, pdf_name_no_ext)
+                
+                # 计算相对路径用于 Markdown 引用
+                try:
+                    # 计算从 output_file_path (所在的目录) 到 img_out_dir 的相对路径
+                    rel_path = os.path.relpath(img_out_dir, final_output_dir)
+                    # 统一使用正斜杠，确保兼容性
+                    image_link_base = rel_path.replace("\\", "/")
+                except ValueError:
+                    # 如果跨盘符无法计算相对路径，则使用绝对路径（或者保持原样）
+                    image_link_base = img_out_dir.replace("\\", "/")
+                    
+            else:
+                # 默认：在 PDF 同级目录下的 extracted_images
+                img_out_dir = os.path.join(pdf_dir, "extracted_images")
+                # 如果主文件也输出在 PDF 同级目录，则引用为 extracted_images
+                # 如果主文件输出在别处，这里逻辑会复杂。但默认情况是都在 pdf_dir。
+                if custom_output_dir:
+                     # 如果指定了文本输出目录，但没指定图片目录（图片仍在 pdf_dir/extracted_images）
+                     # 需要计算相对路径
+                     try:
+                         rel_path = os.path.relpath(os.path.join(pdf_dir, "extracted_images"), custom_output_dir)
+                         image_link_base = rel_path.replace("\\", "/")
+                     except:
+                         pass
             
             # 调用核心提取函数
             content_list = await extract_content(
@@ -482,7 +522,7 @@ async def batch_extract_pdf_content(
                 include_images=include_images,
                 use_local_images_only=use_local_images_only,
                 image_output_dir=img_out_dir,
-                image_link_base="extracted_images"
+                image_link_base=image_link_base
             )
             
             # 写入文件
@@ -666,7 +706,11 @@ async def handle_call_tool(
         include_text = arguments.get("include_text", True)
         include_images = arguments.get("include_images", False)
         use_local_images_only = arguments.get("use_local_images_only", True)
-        return await batch_extract_pdf_content(directory, pattern, format, include_text, include_images, use_local_images_only)
+        custom_output_dir = arguments.get("custom_output_dir")
+        custom_image_output_dir = arguments.get("custom_image_output_dir")
+        return await batch_extract_pdf_content(
+            directory, pattern, format, include_text, include_images, use_local_images_only, custom_output_dir, custom_image_output_dir
+        )
 
     elif name == "get_pdf_metadata":
         return await get_pdf_metadata(file_path)
