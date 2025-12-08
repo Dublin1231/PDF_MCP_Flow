@@ -3,6 +3,7 @@ import asyncio
 import os
 import base64
 import re
+import difflib
 import fitz  # PyMuPDF
 import mcp.types as types
 from mcp.server import Server, NotificationOptions
@@ -545,9 +546,98 @@ async def batch_extract_pdf_content(
     return [types.TextContent(type="text", text="\n".join(summary))]
 
 
+async def search_pdf_files(
+    query: str,
+    directory: str = None,
+    threshold: float = 0.45,
+    limit: int = 10
+):
+    """
+    模糊搜索 PDF 文件位置。
+    """
+    if not directory:
+        directory = os.getcwd()
+    
+    if not os.path.exists(directory):
+        return [types.TextContent(type="text", text=f"Error: 目录不存在 - {directory}")]
+
+    matches = []
+    
+    # 获取所有 PDF 文件
+    search_pattern = os.path.join(directory, "**/*.pdf")
+    # glob 查找所有 pdf
+    files = glob.glob(search_pattern, recursive=True)
+    
+    if not files:
+        return [types.TextContent(type="text", text=f"在 {directory} 中未找到 PDF 文件")]
+
+    query_lower = query.lower()
+    
+    for file_path in files:
+        filename = os.path.basename(file_path)
+        filename_lower = filename.lower()
+        
+        # 1. 精确包含 (优先级最高)
+        if query_lower in filename_lower:
+            # 包含匹配给高分，越短的完全匹配分数越高
+            score = 0.8 + (len(query_lower) / len(filename_lower)) * 0.2
+            matches.append((score, file_path))
+            continue
+            
+        # 2. 模糊匹配
+        ratio = difflib.SequenceMatcher(None, query_lower, filename_lower).ratio()
+        if ratio >= threshold:
+            matches.append((ratio, file_path))
+    
+    # 排序并截取
+    matches.sort(key=lambda x: x[0], reverse=True)
+    top_matches = matches[:limit]
+    
+    if not top_matches:
+        return [types.TextContent(type="text", text=f"未找到匹配 '{query}' 的 PDF 文件")]
+        
+    result_text = f"=== 搜索结果 (Top {len(top_matches)}) ===\n"
+    result_text += f"查询: '{query}' | 目录: {directory}\n\n"
+    
+    for score, path in top_matches:
+        match_type = "Exact/Sub" if score >= 0.8 else f"Fuzzy({score:.2f})"
+        result_text += f"- [{match_type}] {os.path.basename(path)}\n"
+        result_text += f"  Path: {path}\n"
+        
+    return [types.TextContent(type="text", text=result_text)]
+
+
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
     return [
+        types.Tool(
+            name="search_pdf_files",
+            description="通过文件名模糊搜索 PDF 文件路径",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "文件名关键词（模糊匹配）",
+                    },
+                    "directory": {
+                        "type": "string",
+                        "description": "搜索根目录（可选，默认当前目录）",
+                    },
+                    "threshold": {
+                        "type": "number",
+                        "description": "匹配阈值 0.0-1.0 (默认 0.45)",
+                        "default": 0.45
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "返回最大结果数 (默认 10)",
+                        "default": 10
+                    }
+                },
+                "required": ["query"],
+            },
+        ),
         types.Tool(
             name="extract_pdf_content",
             description="提取PDF文件的文本和图片（支持指定页码范围或关键词搜索）",
@@ -690,7 +780,14 @@ async def handle_call_tool(
 
     file_path = arguments.get("file_path")
 
-    if name == "extract_pdf_content":
+    if name == "search_pdf_files":
+        query = arguments.get("query")
+        directory = arguments.get("directory")
+        threshold = arguments.get("threshold", 0.45)
+        limit = arguments.get("limit", 10)
+        return await search_pdf_files(query, directory, threshold, limit)
+
+    elif name == "extract_pdf_content":
         page_range = arguments.get("page_range", "all")
         keyword = arguments.get("keyword")
         format = arguments.get("format", "text")

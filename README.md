@@ -16,6 +16,9 @@
     *   **自动保存与引用**：默认将图片保存到本地 `extracted_images/` 目录，并在 Markdown 中插入图片路径引用，避免大量 Base64 数据占用上下文。
     *   **Base64 预览**：可选直接返回图片 Base64 编码，支持在 MCP 客户端中即时预览（适合少量小图）。
 *   **📂 批量处理**：支持对指定目录下的 PDF 文件进行批量提取，自动生成 Markdown 和图片，并保持目录结构整洁。
+*   **🔍 模糊搜索**：
+    *   **智能查找**：支持通过文件名关键词（模糊匹配、拼写错误兼容）快速定位 PDF 文件路径。
+    *   **递归搜索**：默认支持多级目录递归查找。
 *   **🔄 格式转换**：
     *   **Markdown 转 Word**：将生成的 Markdown 报告一键转换为格式完美的 Word (.docx) 文档。
     *   **Word 转 PDF**：支持将 Word 文档转换为 PDF 文件。
@@ -109,6 +112,16 @@ uv sync
 >
 > **Claude**: (调用 `batch_extract_pdf_content`，参数 `custom_output_dir="D:\\Output\\MD"`, `custom_image_output_dir="D:\\Output\\Images"`)
 
+#### 6. 模糊查找 PDF
+> **用户**: "帮我找一下 `D:\Study` 下面关于 `springboot` 的 PDF 文件。"
+>
+> **Claude**: (自动调用 `search_pdf_files` 工具)
+
+#### 7. 获取 PDF 目录结构
+> **用户**: "提取 `D:\Books\Guide.pdf` 的目录大纲。"
+>
+> **Claude**: (自动调用 `get_pdf_metadata` 工具)
+
 
 ---
 
@@ -175,6 +188,15 @@ uv sync
 *   `docx_path` (必填): 输入的 .docx 文件绝对路径。
 *   `pdf_path` (可选): 输出 .pdf 文件的绝对路径。
     *   如果不提供，将在原 docx 文件同目录下生成同名 pdf 文件。
+
+### 6. `search_pdf_files`
+通过文件名模糊搜索 PDF 文件路径。
+
+**参数：**
+*   `query` (必填): 文件名关键词。支持模糊匹配（如拼写错误）、中文匹配。
+*   `directory` (可选): 搜索根目录。默认为当前工作目录。
+*   `limit` (可选): 返回的最大结果数量，默认 10。
+*   `threshold` (可选): 匹配阈值 (0.0-1.0)，默认 0.45。
 
 
 ## 📂 输出目录结构

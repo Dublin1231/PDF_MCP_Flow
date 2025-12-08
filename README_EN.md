@@ -16,6 +16,9 @@ It not only **precisely extracts** text and images from PDFs into **structured M
     *   **Auto-save & Reference**: Defaults to saving images locally to `extracted_images/` and referencing them in Markdown paths, avoiding context overflow with large Base64 data.
     *   **Base64 Preview**: Optionally returns Base64 encoding for direct preview in MCP clients (suitable for small images).
 *   **📂 Batch Processing**: Supports batch extraction of PDF files in a specified directory, automatically generates Markdown and images, and maintains a clean directory structure.
+*   **🔍 Fuzzy Search**:
+    *   **Smart Lookup**: Support locating PDF file paths via filename keywords (fuzzy matching, spelling error compatibility).
+    *   **Recursive Search**: Supports multi-level directory recursive search by default.
 *   **🔄 Format Conversion**:
     *   **Markdown to Word**: Converts generated Markdown reports into perfectly formatted Word (.docx) documents with one click.
     *   **Word to PDF**: Supports converting Word documents to PDF files.
@@ -108,6 +111,16 @@ Add the following content (Please **ensure** to change the path to your actual l
 >
 > **Claude**: (Calls `batch_extract_pdf_content` with `custom_output_dir="D:\\Output\\MD"`, `custom_image_output_dir="D:\\Output\\Images"`)
 
+#### 6. Fuzzy Find PDF
+> **User**: "Help me find PDF files about 'springboot' under `D:\Study`."
+>
+> **Claude**: (Automatically calls `search_pdf_files` tool)
+
+#### 7. Get PDF Table of Contents
+> **User**: "Extract the outline of `D:\Books\Guide.pdf`."
+>
+> **Claude**: (Automatically calls `get_pdf_metadata` tool)
+
 
 ---
 
@@ -174,6 +187,16 @@ Converts a Word document to a PDF file.
 *   `docx_path` (Required): Absolute path of the input .docx file.
 *   `pdf_path` (Optional): Absolute path for the output .pdf file.
     *   If not provided, generates a pdf file with the same name in the same directory as the original docx file.
+
+### 6. `search_pdf_files`
+Fuzzy search for PDF file paths by filename.
+
+**Parameters:**
+*   `query` (Required): Filename keyword. Supports fuzzy matching (e.g., spelling errors), Chinese matching.
+*   `directory` (Optional): Search root directory. Defaults to the current working directory.
+*   `limit` (Optional): Maximum number of results to return, default is 10.
+*   `threshold` (Optional): Matching threshold (0.0-1.0), default is 0.45.
+
 
 ## 📂 Output Directory Structure
 
