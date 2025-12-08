@@ -15,11 +15,13 @@
     *   支持提取页面内的所有图片。
     *   **自动保存与引用**：默认将图片保存到本地 `extracted_images/` 目录，并在 Markdown 中插入图片路径引用，避免大量 Base64 数据占用上下文。
     *   **Base64 预览**：可选直接返回图片 Base64 编码，支持在 MCP 客户端中即时预览（适合少量小图）。
+*   **📂 批量处理**：支持对指定目录下的 PDF 文件进行批量提取，自动生成 Markdown 和图片，并保持目录结构整洁。
 *   **🔄 格式转换**：
     *   **Markdown 转 Word**：将生成的 Markdown 报告一键转换为格式完美的 Word (.docx) 文档。
     *   **Word 转 PDF**：支持将 Word 文档转换为 PDF 文件。
         *   *自动适配*：优先使用 Microsoft Word，若未安装则自动回退到 WPS Office。
 *   **⚙️ 灵活提取**：支持提取全部页面、指定页码范围（如 `1`, `1-5`）或按关键词智能搜索。
+*   **📂 批量处理**：支持对指定目录下的 PDF 文件进行批量提取，自动生成 Markdown 和图片，并保持目录结构整洁。
 *   **ℹ️ 元数据获取**：支持获取 PDF 标题、作者、页数及**目录结构 (TOC)**。
 
 ## 🛠️ 环境要求
@@ -97,6 +99,11 @@ uv sync
 >
 > **Claude**: (自动调用 `convert_docx_to_pdf` 工具)
 
+#### 4. 批量处理 PDF
+> **用户**: "批量处理 `D:\Docs` 目录下的所有 PDF，导出为 Markdown。"
+>
+> **Claude**: (自动调用 `batch_extract_pdf_content` 工具)
+
 ---
 
 ## 📖 工具列表
@@ -127,7 +134,18 @@ uv sync
     *   `true` (默认): 图片保存到本地 `extracted_images` 目录，Markdown 中使用路径引用。**推荐用于大文件或包含大量图片的 PDF，防止 Token 溢出**。
     *   `false`: 返回图片的 Base64 数据流，可直接预览，但消耗大量 Token。
 
-### 2. `get_pdf_metadata`
+### 2. `batch_extract_pdf_content`
+批量提取指定目录下的 PDF 文件。
+
+**参数：**
+*   `directory` (必填): 要搜索的根目录绝对路径。
+*   `pattern` (可选): 文件匹配模式，默认为 `"**/*.pdf"`（支持递归搜索）。
+*   `format` (可选): 输出格式，默认为 `"markdown"`。
+*   `include_text` (可选): 是否提取文本，默认为 `true`。
+*   `include_images` (可选): 是否提取图片，默认为 `false`。
+*   `use_local_images_only` (可选): 图片处理模式，默认为 `true`。
+
+### 3. `get_pdf_metadata`
 快速获取 PDF 的元数据和目录结构。
 
 **参数：**
@@ -149,6 +167,17 @@ uv sync
 *   `docx_path` (必填): 输入的 .docx 文件绝对路径。
 *   `pdf_path` (可选): 输出 .pdf 文件的绝对路径。
     *   如果不提供，将在原 docx 文件同目录下生成同名 pdf 文件。
+
+### 5. `batch_extract_pdf_content`
+批量处理指定目录下的所有 PDF 文件。
+
+**参数：**
+*   `directory` (必填): 要搜索的根目录绝对路径。
+*   `pattern` (可选): 文件匹配模式，默认为 `**/*.pdf` (支持递归)。
+*   `format` (可选): 输出格式，默认为 `markdown`。
+*   `include_text` (可选): 是否提取文本，默认为 `true`。
+*   `include_images` (可选): 是否提取图片，默认为 `false`。
+*   `use_local_images_only` (可选): 图片处理模式，默认为 `true`。
 
 
 ## 📂 输出目录结构

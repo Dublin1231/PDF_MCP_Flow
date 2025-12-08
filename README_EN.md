@@ -15,6 +15,7 @@ It not only **precisely extracts** text and images from PDFs into **structured M
     *   Extracts all images within pages.
     *   **Auto-save & Reference**: Defaults to saving images locally to `extracted_images/` and referencing them in Markdown paths, avoiding context overflow with large Base64 data.
     *   **Base64 Preview**: Optionally returns Base64 encoding for direct preview in MCP clients (suitable for small images).
+*   **📂 Batch Processing**: Supports batch extraction of PDF files in a specified directory, automatically generates Markdown and images, and maintains a clean directory structure.
 *   **🔄 Format Conversion**:
     *   **Markdown to Word**: Converts generated Markdown reports into perfectly formatted Word (.docx) documents with one click.
     *   **Word to PDF**: Supports converting Word documents to PDF files.
@@ -97,6 +98,11 @@ Add the following content (Please **ensure** to change the path to your actual l
 >
 > **Claude**: (Automatically calls `convert_docx_to_pdf` tool)
 
+#### 4. Batch Process PDFs
+> **User**: "Batch process all PDFs in the `D:\Docs` directory and export to Markdown."
+>
+> **Claude**: (Automatically calls the `batch_extract_pdf_content` tool)
+
 ---
 
 ## 📖 Tool List
@@ -120,20 +126,31 @@ Core tool for extracting PDF content.
 *   `format` (Optional): Output format.
     *   `"text"` (Default): Plain text extraction.
     *   `"markdown"`: **Recommended**. Smartly identifies headers and paragraphs, suitable for LLM reading.
-    *   `"json"`: Returns structured JSON data containing text and image information for each page, suitable for programmatic processing.
+    *   `"json"`: Returns structured JSON data, suitable for programmatic processing.
 *   `include_text` (Optional): Whether to extract text, default is `true`.
 *   `include_images` (Optional): Whether to extract images, default is `false`.
 *   `use_local_images_only` (Optional): Image processing mode, default is `true`.
     *   `true` (Default): Saves images locally to `extracted_images` directory and uses path references in Markdown. **Recommended for large files or PDFs with many images to prevent token overflow**.
     *   `false`: Returns Base64 data stream for images, allowing direct preview but consuming significant tokens.
 
-### 2. `get_pdf_metadata`
+### 2. `batch_extract_pdf_content`
+Batch extracts PDF files in a specified directory.
+
+**Parameters:**
+*   `directory` (Required): Absolute path of the root directory to search.
+*   `pattern` (Optional): File matching pattern, default is `"**/*.pdf"` (supports recursive search).
+*   `format` (Optional): Output format, default is `"markdown"`.
+*   `include_text` (Optional): Whether to extract text, default is `true`.
+*   `include_images` (Optional): Whether to extract images, default is `false`.
+*   `use_local_images_only` (Optional): Image processing mode, default is `true`.
+
+### 3. `get_pdf_metadata`
 Quickly retrieves PDF metadata and Table of Contents (TOC).
 
 **Parameters:**
 *   `file_path` (Required): Absolute path of the PDF file.
 
-### 3. `convert_markdown_to_docx`
+### 4. `convert_markdown_to_docx`
 Converts Markdown content to a Word document.
 
 **Parameters:**
@@ -142,7 +159,7 @@ Converts Markdown content to a Word document.
     *   *Note*: Enter the **new file path you want to save to**.
     *   *Example*: `D:\Documents\report_output.docx`
 
-### 4. `convert_docx_to_pdf`
+### 5. `convert_docx_to_pdf`
 Converts a Word document to a PDF file.
 
 **Parameters:**

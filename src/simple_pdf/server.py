@@ -155,8 +155,9 @@ async def get_pdf_metadata(file_path: str):
         return [types.TextContent(type="text", text=f"Error processing PDF metadata: {str(e)}")]
 
 import json
+import glob
 
-async def extract_content(file_path: str, page_range: str = "1", keyword: str = None, format: str = "text", include_text: bool = True, include_images: bool = False, use_local_images_only: bool = True):
+async def extract_content(file_path: str, page_range: str = "1", keyword: str = None, format: str = "text", include_text: bool = True, include_images: bool = False, use_local_images_only: bool = True, image_output_dir: str = None, image_link_base: str = None):
     """
     提取PDF指定页面的文本和图片。
     :param file_path: PDF文件路径
@@ -164,6 +165,8 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
     :param keyword: 关键词，如果提供，则仅提取包含该关键词的页面（忽略 page_range）
     :param format: 输出格式，'text' (默认), 'markdown' 或 'json'
     :param use_local_images_only: 如果为True，图片仅保存到本地并在文本中引用路径，不返回Base64数据（避免上下文溢出）
+    :param image_output_dir: (可选) 图片保存的根目录，默认为当前目录下的 extracted_images
+    :param image_link_base: (可选) Markdown中引用图片的基础路径，默认为 extracted_images
     :return: 包含文本和图片的列表
     """
     if not os.path.exists(file_path):
@@ -238,8 +241,12 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
         # 准备图片输出目录
         pdf_filename = os.path.basename(file_path)
         pdf_name_no_ext = os.path.splitext(pdf_filename)[0]
-        cwd = os.getcwd()
-        output_dir = os.path.join(cwd, "extracted_images", pdf_name_no_ext)
+        
+        if image_output_dir:
+            output_dir = os.path.join(image_output_dir, pdf_name_no_ext)
+        else:
+            cwd = os.getcwd()
+            output_dir = os.path.join(cwd, "extracted_images", pdf_name_no_ext)
         
         # 如果需要提取图片，先创建目录
         has_images = False
@@ -284,11 +291,17 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                             # 记录路径
                             page_image_paths.append(img_filename)
                             
+                            # 计算相对引用路径
+                            if image_link_base:
+                                rel_path = f"{image_link_base}/{pdf_name_no_ext}/{img_filename}"
+                            else:
+                                rel_path = f"extracted_images/{pdf_name_no_ext}/{img_filename}"
+                            
                             # 记录 JSON 数据
                             img_info = {
                                 "filename": img_filename,
                                 "local_path": img_path,
-                                "rel_path": f"extracted_images/{pdf_name_no_ext}/{img_filename}"
+                                "rel_path": rel_path
                             }
                             
                             # 如果需要返回 Base64
@@ -379,10 +392,12 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                 if format == 'markdown' and page_image_paths:
                     safe_text += "\n\n"
                     for img_file in page_image_paths:
-                        # 使用相对路径或绝对路径，这里使用相对路径方便阅读
-                        # 注意：Obsidian 等工具可能需要特定格式，这里使用标准 Markdown 图片语法
-                        # 引用路径: extracted_images/filename/img.jpg
-                        rel_path = f"extracted_images/{pdf_name_no_ext}/{img_file}"
+                        # 引用路径
+                        if image_link_base:
+                            rel_path = f"{image_link_base}/{pdf_name_no_ext}/{img_file}"
+                        else:
+                            rel_path = f"extracted_images/{pdf_name_no_ext}/{img_file}"
+                        
                         # 转义空格
                         rel_path = rel_path.replace(" ", "%20")
                         safe_text += f"![Image]({rel_path})\n"
@@ -415,6 +430,80 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
         result_content.append(types.TextContent(type="text", text=f"Error processing PDF: {str(e)}"))
 
     return result_content
+
+async def batch_extract_pdf_content(
+    directory: str,
+    pattern: str = "**/*.pdf",
+    format: str = "markdown",
+    include_text: bool = True,
+    include_images: bool = False,
+    use_local_images_only: bool = True
+):
+    """
+    批量提取指定目录下的PDF文件。
+    """
+    if not os.path.exists(directory):
+        return [types.TextContent(type="text", text=f"Error: 目录不存在 - {directory}")]
+
+    search_path = os.path.join(directory, pattern)
+    files = glob.glob(search_path, recursive=True)
+    
+    if not files:
+        return [types.TextContent(type="text", text=f"未找到匹配的文件: {search_path}")]
+
+    summary = ["=== 批量处理报告 ===\n"]
+    success_count = 0
+    fail_count = 0
+    
+    for pdf_path in files:
+        if not os.path.isfile(pdf_path):
+            continue
+            
+        try:
+            pdf_name = os.path.basename(pdf_path)
+            summary.append(f"Processing: {pdf_name}...")
+            
+            # 确定输出路径
+            pdf_dir = os.path.dirname(pdf_path)
+            pdf_name_no_ext = os.path.splitext(pdf_name)[0]
+            
+            output_ext = "json" if format == "json" else "md" if format == "markdown" else "txt"
+            output_file_path = os.path.join(pdf_dir, f"{pdf_name_no_ext}.{output_ext}")
+            
+            # 图片输出路径: pdf_dir/extracted_images/pdf_name
+            img_out_dir = os.path.join(pdf_dir, "extracted_images")
+            
+            # 调用核心提取函数
+            content_list = await extract_content(
+                file_path=pdf_path,
+                page_range="all",
+                format=format,
+                include_text=include_text,
+                include_images=include_images,
+                use_local_images_only=use_local_images_only,
+                image_output_dir=img_out_dir,
+                image_link_base="extracted_images"
+            )
+            
+            # 写入文件
+            full_text = ""
+            for item in content_list:
+                if item.type == "text":
+                    full_text += item.text
+            
+            with open(output_file_path, "w", encoding="utf-8") as f:
+                f.write(full_text)
+                
+            summary.append(f"  -> Saved to: {output_file_path}")
+            success_count += 1
+            
+        except Exception as e:
+            summary.append(f"  -> Failed: {str(e)}")
+            fail_count += 1
+            
+    summary.append(f"\nTotal: {len(files)}, Success: {success_count}, Failed: {fail_count}")
+    return [types.TextContent(type="text", text="\n".join(summary))]
+
 
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
@@ -461,6 +550,43 @@ async def handle_list_tools() -> list[types.Tool]:
                     }
                 },
                 "required": ["file_path"],
+            },
+        ),
+        types.Tool(
+            name="batch_extract_pdf_content",
+            description="批量提取指定目录下的PDF文件",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "directory": {
+                        "type": "string",
+                        "description": "要搜索的根目录绝对路径",
+                    },
+                    "pattern": {
+                        "type": "string",
+                        "description": "文件匹配模式，例如 '**/*.pdf' (支持递归)",
+                        "default": "**/*.pdf"
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["text", "markdown", "json"],
+                        "description": "输出格式",
+                        "default": "markdown"
+                    },
+                    "include_text": {
+                        "type": "boolean",
+                        "default": True
+                    },
+                    "include_images": {
+                        "type": "boolean",
+                        "default": False
+                    },
+                    "use_local_images_only": {
+                        "type": "boolean",
+                        "default": True
+                    }
+                },
+                "required": ["directory"],
             },
         ),
         types.Tool(
@@ -533,6 +659,15 @@ async def handle_call_tool(
         use_local_images_only = arguments.get("use_local_images_only", True)
         return await extract_content(file_path, page_range, keyword, format, include_text, include_images, use_local_images_only)
     
+    elif name == "batch_extract_pdf_content":
+        directory = arguments.get("directory")
+        pattern = arguments.get("pattern", "**/*.pdf")
+        format = arguments.get("format", "markdown")
+        include_text = arguments.get("include_text", True)
+        include_images = arguments.get("include_images", False)
+        use_local_images_only = arguments.get("use_local_images_only", True)
+        return await batch_extract_pdf_content(directory, pattern, format, include_text, include_images, use_local_images_only)
+
     elif name == "get_pdf_metadata":
         return await get_pdf_metadata(file_path)
 
