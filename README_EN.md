@@ -24,6 +24,10 @@ It serves as a comprehensive **ETL (Extract, Transform, Load)** tool for your pe
     *   **Auto-save & Reference**: Defaults to saving images locally to `extracted_images/` and referencing them in Markdown paths, avoiding context overflow with large Base64 data.
     *   **Base64 Preview**: Optionally returns Base64 encoding for direct preview in MCP clients (suitable for small images).
 *   **📂 Batch Processing**: Supports batch extraction of PDF files in a specified directory, automatically generates Markdown and images, and maintains a clean directory structure.
+*   **📊 Enhanced Table Extraction**:
+    *   **High-Precision Recognition**: Automatically handles multi-line headers, misaligned columns, and complex layouts.
+    *   **Smart Cleaning**: Automatically removes empty rows/headers and filters pseudo-tables (e.g., text lists).
+    *   **Batch Export**: Supports one-click extraction of tables from all PDFs in a directory to Markdown files.
 *   **🔍 Fuzzy Search**:
     *   **Smart Lookup**: Support locating PDF file paths via filename keywords (fuzzy matching, spelling error compatibility).
     *   **Recursive Search**: Supports multi-level directory recursive search by default.
@@ -38,9 +42,7 @@ It serves as a comprehensive **ETL (Extract, Transform, Load)** tool for your pe
 
 *   **OS**: Windows (Recommended for Word/WPS conversion support) / macOS / Linux
 *   **Python**: >= 3.10
-*   **Office Software** (Required only for Word to PDF conversion):
-    *   Microsoft Word (Best compatibility)
-    *   Or WPS Office (Windows supported)
+
 
 ## 📦 Installation & Usage
 
@@ -134,6 +136,11 @@ Add the following content (Please **ensure** to change the path to your actual l
 >
 > **Claude**: (Automatically calls `get_pdf_metadata` tool)
 
+#### 8. Batch Extract Tables
+> **User**: "Extract tables from all PDFs in `D:\Books` and save them to `D:\Tables`."
+>
+> **Claude**: (Automatically calls `batch_extract_tables` tool)
+
 
 ---
 
@@ -164,6 +171,9 @@ Core tool for extracting PDF content.
 *   `use_local_images_only` (Optional): Image processing mode, default is `true`.
     *   `true` (Default): Saves images locally to `extracted_images` directory and uses path references in Markdown. **Recommended for large files or PDFs with many images to prevent token overflow**.
     *   `false`: Returns Base64 data stream for images, allowing direct preview but consuming significant tokens.
+*   `skip_table_detection` (Optional): **Speed Boost Mode** switch, default is `false`.
+    *   `false` (Default): Intelligently detects and extracts tables, converting them to Markdown table format.
+    *   `true`: **Skip table detection**. Suitable for scenarios requiring only plain text content. Speed can increase by 3-4x (approx. 400+ pages/sec).
 
 ### 2. `batch_extract_pdf_content`
 Batch extracts PDF files in a specified directory.
@@ -177,6 +187,9 @@ Batch extracts PDF files in a specified directory.
 *   `include_text` (Optional): Whether to extract text, default is `true`.
 *   `include_images` (Optional): Whether to extract images, default is `false`.
 *   `use_local_images_only` (Optional): Image processing mode, default is `true`.
+*   `skip_table_detection` (Optional): **Speed Boost Mode** switch, default is `false`.
+    *   `false` (Default): Intelligently detects and extracts tables, converting them to Markdown table format.
+    *   `true`: **Skip table detection**. Suitable for scenarios requiring only plain text content. Speed can increase by 3-4x (approx. 400+ pages/sec).
 
 ### 3. `get_pdf_metadata`
 Quickly retrieves PDF metadata and Table of Contents (TOC).
@@ -209,6 +222,25 @@ Fuzzy search for PDF file paths by filename.
 *   `directory` (Optional): Search root directory. Defaults to the current working directory.
 *   `limit` (Optional): Maximum number of results to return, default is 10.
 *   `threshold` (Optional): Matching threshold (0.0-1.0), default is 0.45.
+
+### 7. `batch_extract_tables`
+Batch extracts tables from all PDFs in a directory.
+
+**Parameters:**
+*   `directory` (Required): Absolute path of the root directory to search.
+*   `output_dir` (Required): Output directory for table Markdown files.
+*   `pattern` (Optional): File matching pattern, default is `"**/*.pdf"`.
+
+**✨ Enhanced Table Extraction Features:**
+*   **Smart Header Merging**: Automatically handles multi-line headers and split column names.
+*   **Misaligned Column Fix**: Intelligently identifies and merges misaligned header and content columns due to formatting issues.
+*   **Empty Row/Header Optimization**:
+    *   Automatically removes invalid empty rows.
+    *   Intelligently identifies KV structure tables, preserving headers only when necessary to avoid creating incorrect empty headers for Chinese KV tables.
+*   **Pseudo-Table Filtering**:
+    *   Automatically identifies and filters text lists (e.g., Table of Contents, step instructions).
+    *   Automatically filters code blocks or long text paragraphs misidentified as tables.
+*   **Layout Optimization**: Intelligently handles newlines within cells, maintaining clear list structures while allowing normal long text to reflow naturally.
 
 
 ## 📂 Output Directory Structure

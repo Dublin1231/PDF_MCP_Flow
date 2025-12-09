@@ -32,6 +32,8 @@ ENV/
 .vscode/
 *.swp
 *.swo
+.trae/
+.obsidian/
 
 # OS
 .DS_Store
