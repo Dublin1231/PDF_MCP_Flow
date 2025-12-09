@@ -11,8 +11,16 @@ from mcp.server.models import InitializationOptions
 import mcp.server.stdio
 try:
     from .convert import markdown_to_docx, docx_to_pdf
-except ImportError:
-    from convert import markdown_to_docx, docx_to_pdf
+except ImportError as e:
+    # 如果是依赖缺失（如 pypandoc），直接抛出异常，不要尝试 fallback
+    if "pypandoc" in str(e) or "docx2pdf" in str(e):
+        raise e
+    # 仅在找不到 convert 模块本身时尝试 fallback（兼容直接运行脚本的情况）
+    try:
+        from convert import markdown_to_docx, docx_to_pdf
+    except ImportError:
+        # 如果 fallback 也失败，抛出原始异常以便调试
+        raise e
 
 from collections import Counter
 
