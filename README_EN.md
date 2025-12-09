@@ -73,25 +73,30 @@ To add this tool to Claude Desktop, edit the configuration file:
 
 Add the following content (Please **ensure** to change the path to your actual local path):
 
-```json
+```jsonc
 {
   "mcpServers": {
     "simple-pdf": {
       "command": "uv",
       "args": [
         "--directory",
-        "D:/path/to/your/mcp-pdf-flow", 
+        "D:/path/to/your/mcp-pdf-flow", // ⚠️ Make sure to update this to your actual local path
         "run",
         "simple-pdf"
       ],
       "env": {
-        "PYTHONIOENCODING": "utf-8"
+        "PYTHONIOENCODING": "utf-8",
+        // (Optional) Specify extra PDF search paths. Use semicolon (;) for Windows, colon (:) for Mac/Linux
+        "PDF_SEARCH_PATHS": //"D:\\example;E:\\example"
       }
     }
   }
 }
 ```
-*Note: Windows users please use `/` or `\\` as path separators.*
+*Note: Support JSONC (JSON with comments). If your editor reports an error, you can safely ignore it or use standard JSON (remove comments).*
+*Note:*
+*   *Windows users please use `/` or `\\` as path separators.*
+*   *`PDF_SEARCH_PATHS` is optional configuration for specifying extra PDF search paths. Separate multiple paths with `;` (Windows) or `:` (Mac/Linux).*
 
 ## 💬 How to Use in Chat
 
@@ -162,6 +167,9 @@ Core tool for extracting PDF content.
 *   `page_range` (Optional): Page range, default is "all".
     *   Examples: `"1"`, `"1-5"`, `"1,3,5"`, `"all"`.
 *   `keyword` (Optional): Keyword search. If provided, ignores page range and extracts only pages containing the keyword.
+*   `skip_table_detection` (Optional): Whether to skip table detection, default is `false`.
+    *   `true`: **Fast Mode**. Extracts pure text only, skipping table detection. 5-10x faster, suitable for text-only scenarios.
+    *   `false`: **Standard Mode**. Performs high-precision table recognition and restructuring.
 *   `format` (Optional): Output format.
     *   `"text"` (Default): Plain text extraction.
     *   `"markdown"`: **Recommended**. Smartly identifies headers and paragraphs, suitable for LLM reading.

@@ -1367,50 +1367,81 @@ async def search_pdf_files(
 ):
     """
     模糊搜索 PDF 文件位置。
+    如果未指定 directory，默认搜索当前目录。
+    可以通过环境变量 PDF_SEARCH_PATHS 配置额外的搜索路径 (使用系统路径分隔符分隔)。
     """
-    if not directory:
-        directory = os.getcwd()
+    search_dirs = []
     
-    if not os.path.exists(directory):
-        return [types.TextContent(type="text", text=f"Error: 目录不存在 - {directory}")]
-
-    matches = []
-    
-    # 获取所有 PDF 文件
-    search_pattern = os.path.join(directory, "**/*.pdf")
-    # glob 查找所有 pdf
-    files = glob.glob(search_pattern, recursive=True)
-    
-    if not files:
-        return [types.TextContent(type="text", text=f"在 {directory} 中未找到 PDF 文件")]
-
-    query_lower = query.lower()
-    
-    for file_path in files:
-        filename = os.path.basename(file_path)
-        filename_lower = filename.lower()
+    if directory:
+        if not os.path.exists(directory):
+            return [types.TextContent(type="text", text=f"Error: 目录不存在 - {directory}")]
+        search_dirs.append(directory)
+    else:
+        # 默认搜索路径
+        cwd = os.getcwd()
+        search_dirs.append(cwd)
         
-        # 1. 精确包含 (优先级最高)
-        if query_lower in filename_lower:
-            # 包含匹配给高分，越短的完全匹配分数越高
-            score = 0.8 + (len(query_lower) / len(filename_lower)) * 0.2
-            matches.append((score, file_path))
-            continue
+        # 从环境变量获取额外搜索路径
+        env_paths = os.environ.get("PDF_SEARCH_PATHS")
+        if env_paths:
+            # 使用 os.pathsep (Windows是;, Unix是:) 分割
+            for p in env_paths.split(os.pathsep):
+                p = p.strip()
+                if p and os.path.exists(p) and p != cwd:
+                    search_dirs.append(p)
+    
+    matches = []
+    scanned_files_count = 0
+    
+    for search_root in search_dirs:
+        # 获取所有 PDF 文件
+        # 使用 glob.glob 可能会受限于路径长度或权限，但在 Python 3.10+ 通常表现良好
+        # 显式使用 recursive=True
+        try:
+            search_pattern = os.path.join(search_root, "**", "*.pdf")
+            files = glob.glob(search_pattern, recursive=True)
+            scanned_files_count += len(files)
             
-        # 2. 模糊匹配
-        ratio = difflib.SequenceMatcher(None, query_lower, filename_lower).ratio()
-        if ratio >= threshold:
-            matches.append((ratio, file_path))
+            query_lower = query.lower()
+            
+            for file_path in files:
+                filename = os.path.basename(file_path)
+                filename_lower = filename.lower()
+                
+                # 1. 精确包含 (优先级最高)
+                if query_lower in filename_lower:
+                    # 包含匹配给高分，越短的完全匹配分数越高
+                    score = 0.8 + (len(query_lower) / len(filename_lower)) * 0.2
+                    matches.append((score, file_path))
+                    continue
+                    
+                # 2. 模糊匹配
+                ratio = difflib.SequenceMatcher(None, query_lower, filename_lower).ratio()
+                if ratio >= threshold:
+                    matches.append((ratio, file_path))
+                    
+        except Exception as e:
+            # 忽略权限错误等
+            continue
+    
+    # 去重 (同一文件可能被多次扫描)
+    unique_matches = {}
+    for score, path in matches:
+        if path not in unique_matches or score > unique_matches[path]:
+            unique_matches[path] = score
+    
+    final_matches = [(score, path) for path, score in unique_matches.items()]
     
     # 排序并截取
-    matches.sort(key=lambda x: x[0], reverse=True)
-    top_matches = matches[:limit]
+    final_matches.sort(key=lambda x: x[0], reverse=True)
+    top_matches = final_matches[:limit]
     
     if not top_matches:
-        return [types.TextContent(type="text", text=f"未找到匹配 '{query}' 的 PDF 文件")]
+        search_locations = ", ".join(search_dirs)
+        return [types.TextContent(type="text", text=f"未找到匹配 '{query}' 的 PDF 文件\n已搜索路径: {search_locations}\n扫描文件数: {scanned_files_count}")]
         
     result_text = f"=== 搜索结果 (Top {len(top_matches)}) ===\n"
-    result_text += f"查询: '{query}' | 目录: {directory}\n\n"
+    result_text += f"查询: '{query}' | 扫描文件数: {scanned_files_count}\n"
     
     for score, path in top_matches:
         match_type = "Exact/Sub" if score >= 0.8 else f"Fuzzy({score:.2f})"
