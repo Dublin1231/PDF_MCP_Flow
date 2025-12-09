@@ -848,7 +848,7 @@ async def handle_call_tool(
     else:
         raise ValueError(f"Unknown tool: {name}")
 
-async def main():
+async def run_server():
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,
@@ -863,5 +863,9 @@ async def main():
             ),
         )
 
+def main():
+    """Entry point for the application script"""
+    asyncio.run(run_server())
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
