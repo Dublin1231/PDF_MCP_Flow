@@ -131,17 +131,22 @@ Add the following content (Please **ensure** to change the path to your actual l
 >
 > **Claude**: (Calls `batch_extract_pdf_content` with `custom_output_dir="D:\\Output\\MD"`, `custom_image_output_dir="D:\\Output\\Images"`)
 
-#### 6. Fuzzy Find PDF
+#### 6. Batch Process with Flat Output (No Directory Structure)
+> **User**: "Extract all PDFs from subfolders in `D:\Docs` and put them all into `D:\All_MDs` without creating subfolders."
+>
+> **Claude**: (Calls `batch_extract_pdf_content` with `custom_output_dir="D:\\All_MDs"`, `preserve_structure=False`, `create_folder=False`)
+
+#### 7. Fuzzy Find PDF
 > **User**: "Help me find PDF files about 'springboot' under `D:\Study`."
 >
 > **Claude**: (Automatically calls `search_pdf_files` tool)
 
-#### 7. Get PDF Table of Contents
+#### 8. Get PDF Table of Contents
 > **User**: "Extract the outline of `D:\Books\Guide.pdf`."
 >
 > **Claude**: (Automatically calls `get_pdf_metadata` tool)
 
-#### 8. Batch Extract Tables
+#### 9. Batch Extract Tables
 > **User**: "Extract tables from all PDFs in `D:\Books` and save them to `D:\Tables`."
 >
 > **Claude**: (Automatically calls `batch_extract_tables` tool)
@@ -187,8 +192,13 @@ Batch extracts PDF files in a specified directory.
 **Parameters:**
 *   `directory` (Required): Absolute path of the root directory to search.
 *   `pattern` (Optional): File matching pattern, default is `"**/*.pdf"` (supports recursive search).
-*   `custom_output_dir` (Optional): Specifies the output directory for Markdown/JSON files. If omitted, saves in the same directory as the PDF file.
-*   `custom_image_output_dir` (Optional): Specifies the root output directory for images. If omitted, saves in an `extracted_images` folder within the PDF file's directory.
+*   `custom_output_dir` (Optional): Specifies the output root directory. If omitted, it defaults to the project root. The final output will be created in an `output` folder within this directory, containing the following subdirectories based on the mode:
+    *   `output_standard_with_image`: With images, standard mode (includes tables).
+    *   `output_fast_with_image_no_table`: With images, fast mode (skips table detection).
+    *   `output_standard_no_image`: Standard mode + Plain text (**No images**, includes tables).
+    *   `output_fast_no_image_and_table`: Fast mode + Plain text (**No images, No tables**).
+    *   `output_only_image`: Image extraction only mode (No Markdown file generated, images saved in `output/output_only_image/extracted_images`).
+*   `custom_image_output_dir` (Optional): Specifies the root output directory for images. If omitted, saves in an `extracted_images` folder within the output directory.
 *   `format` (Optional): Output format, default is `"markdown"`.
 *   `include_text` (Optional): Whether to extract text, default is `true`.
 *   `include_images` (Optional): Whether to extract images, default is `false`.
@@ -196,6 +206,12 @@ Batch extracts PDF files in a specified directory.
 *   `skip_table_detection` (Optional): **Speed Boost Mode** switch, default is `false`.
     *   `false` (Default): Intelligently detects and extracts tables, converting them to Markdown table format.
     *   `true`: **Skip table detection**. Suitable for scenarios requiring only plain text content. Speed can increase by 3-4x (approx. 400+ pages/sec).
+*   `create_folder` (Optional): Toggle for **creating a dedicated folder** for each PDF, default is `false`.
+    *   `true`: Creates a dedicated folder with the same name as the PDF for each file (e.g., `output/subdir/file/file.md`).
+    *   `false` (Default): Does not create a dedicated folder (e.g., `output/subdir/file.md`).
+*   `preserve_structure` (Optional): Toggle for **Directory Structure Preservation**, default is `true`.
+    *   `true` (Default): Preserves the directory hierarchy of source files (e.g., `output/SourceSubDir/file.md`).
+    *   `false`: **Flat Output**. Ignores source directory structure and places all results directly in the output root directory (e.g., `output/file.md`).
 
 ### 3. `get_pdf_metadata`
 Quickly retrieves PDF metadata and Table of Contents (TOC).
@@ -232,9 +248,12 @@ Fuzzy search for PDF file paths by filename.
 ### 7. `batch_extract_tables`
 Batch extracts tables from all PDFs in a directory.
 
+**Default Output Path:**
+*   `output/output_only_table`: Table extraction only mode (Tables saved in `output/output_only_table` directory).
+
 **Parameters:**
 *   `directory` (Required): Absolute path of the root directory to search.
-*   `output_dir` (Required): Output directory for table Markdown files.
+*   `output_dir` (Optional): Specifies the output root directory. The final table Markdown files will be saved in the `output/output_only_table` folder within this directory. If omitted, defaults to the current working directory.
 *   `pattern` (Optional): File matching pattern, default is `"**/*.pdf"`.
 
 **✨ Enhanced Table Extraction Features:**

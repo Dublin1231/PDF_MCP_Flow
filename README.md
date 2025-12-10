@@ -134,18 +134,23 @@ uv sync
 >
 > **Claude**: (调用 `batch_extract_pdf_content`，参数 `custom_output_dir="D:\\Output\\MD"`, `custom_image_output_dir="D:\\Output\\Images"`)
 
-#### 6. 模糊查找 PDF
+#### 6. 批量处理并平铺输出（不保留目录结构）
+> **用户**: "把 `D:\Docs` 下所有子文件夹里的 PDF 都提取出来，全部放到 `D:\All_MDs` 这个文件夹里，不要建子文件夹。"
+>
+> **Claude**: (调用 `batch_extract_pdf_content`，参数 `custom_output_dir="D:\\All_MDs"`, `preserve_structure=False`, `create_folder=False`)
+
+#### 7. 模糊查找 PDF
 > **用户**: "帮我找一下 `D:\Study` 下面关于 `springboot` 的 PDF 文件。"
 >
 > **Claude**: (自动调用 `search_pdf_files` 工具)
 
-#### 7. 获取 PDF 目录结构
+#### 8. 获取 PDF 目录结构
 > **用户**: "提取 `D:\Books\Guide.pdf` 的目录大纲。"
 >
 > **Claude**: (自动调用 `get_pdf_metadata` 工具)
 
 
-#### 8. 批量提取表格
+#### 9. 批量提取表格
 > **用户**: "把 `D:\Books` 下所有 PDF 的表格提取出来，存到 `D:\Tables`。"
 >
 > **Claude**: (自动调用 `batch_extract_tables` 工具)
@@ -191,8 +196,13 @@ uv sync
 **参数：**
 *   `directory` (必填): 要搜索的根目录绝对路径。
 *   `pattern` (可选): 文件匹配模式，默认为 `**/*.pdf` (支持递归)。
-*   `custom_output_dir` (可选): 指定 Markdown/JSON 文件的输出目录。如果不填，默认保存在 PDF 文件同级目录。
-*   `custom_image_output_dir` (可选): 指定图片的输出根目录。如果不填，默认保存在 PDF 文件同级目录下的 `extracted_images` 文件夹中。
+*   `custom_output_dir` (可选): 指定输出根目录。如果不填，默认使用项目根目录。最终输出将在该目录下创建 `output` 文件夹，并根据模式包含以下子目录：
+    *   `output_standard_with_image`: 包含图片，标准模式（含表格）。
+    *   `output_fast_with_image_no_table`: 包含图片，极速模式（跳过表格检测）。
+    *   `output_standard_no_image`: 标准模式+纯文本 (**不含图片**，含表格)。
+    *   `output_fast_no_image_and_table`: 极速模式+纯文本 (**不含图片，不含表格**)。
+    *   `output_only_image`: 仅提取图片模式 (不生成 Markdown 文件，图片保存在 `output/output_only_image/extracted_images` 目录)。
+*   `custom_image_output_dir` (可选): 指定图片的输出根目录。如果不填，默认保存在输出目录下的 `extracted_images` 文件夹中。
 *   `format` (可选): 输出格式，支持 `markdown` (默认), `json`, `text`。
 *   `include_text` (可选): 是否提取文本，默认为 `true`。
 *   `include_images` (可选): 是否提取图片，默认为 `false`。
@@ -200,6 +210,12 @@ uv sync
 *   `skip_table_detection` (可选): **极速模式**开关，默认为 `false`。
     *   `false` (默认): 智能检测并提取表格，转换为 Markdown 表格格式。
     *   `true`: **跳过表格检测**。适用于仅需要纯文本内容的场景，速度可提升 3-4 倍（约 400+ 页/秒）。
+*   `create_folder` (可选): **是否创建专属文件夹**，默认为 `false`。
+    *   `true`: 为每个 PDF 创建专属的同名文件夹（例如 `output/subdir/file/file.md`）。
+    *   `false` (默认): 不创建专属文件夹（例如 `output/subdir/file.md`）。
+*   `preserve_structure` (可选): **目录结构保持**开关，默认为 `true`。
+    *   `true` (默认): 保持源文件的目录层级结构（例如 `output/SourceSubDir/file.md`）。
+    *   `false`: **集中/扁平化**模式。忽略源目录结构，将所有结果直接放在输出根目录（例如 `output/file.md`）。
 
 
 ### 3. `get_pdf_metadata`
@@ -238,9 +254,12 @@ uv sync
 ### 7. `batch_extract_tables`
 批量提取目录中所有 PDF 的表格。
 
+**默认输出路径：**
+*   `output/output_only_table`: 仅提取表格模式 (表格保存在 `output/output_only_table` 目录)。
+
 **参数：**
 *   `directory` (必填): 要搜索的根目录绝对路径。
-*   `output_dir` (必填): 表格 Markdown 文件的输出目录。
+*   `output_dir` (可选): 指定输出根目录。最终表格 Markdown 文件将保存在该目录下的 `output/output_only_table` 文件夹中。如果不填，默认为当前目录。
 *   `pattern` (可选): 文件匹配模式，默认为 `**/*.pdf`。
 
 **✨ 表格提取增强特性：**

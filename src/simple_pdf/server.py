@@ -1143,7 +1143,7 @@ def _process_single_pdf_worker(args):
     用于批量处理的工作函数。
     必须是顶层函数以便于 pickling。
     """
-    pdf_path, format, include_text, include_images, use_local_images_only, custom_output_dir, custom_image_output_dir, skip_table_detection = args
+    pdf_path, format, include_text, include_images, use_local_images_only, custom_output_dir, custom_image_output_dir, skip_table_detection, create_folder, root_output_dir = args
     
     try:
         pdf_name = os.path.basename(pdf_path)
@@ -1159,6 +1159,11 @@ def _process_single_pdf_worker(args):
             final_output_dir = custom_output_dir
         else:
             final_output_dir = pdf_dir
+        
+        # 如果需要为每个 PDF 创建专属文件夹
+        if create_folder:
+            final_output_dir = os.path.join(final_output_dir, pdf_name_no_ext)
+            os.makedirs(final_output_dir, exist_ok=True)
             
         output_file_path = os.path.join(final_output_dir, f"{pdf_name_no_ext}.{output_ext}")
         
@@ -1179,13 +1184,25 @@ def _process_single_pdf_worker(args):
                 # 如果 relpath 失败（例如跨驱动器），则回退到绝对路径或默认行为
                 pass
         else:
-             # 如果需要，默认行为逻辑与原始函数一致，
-             # 但 extract_content 会在 image_output_dir 为 None 时在 cwd/extracted_images 中创建
-             # 我们希望它相对于 PDF 或输出。
-             # 让我们处理常见情况：如果输出到自定义目录，除非指定，否则图片也应该去那里。
-             # 为了在工作线程中简化，如果没有 custom_image_output_dir，我们让 extract_content 决定 (cwd)
-             # 或者我们强制它在输出文件附近。
-             pass
+            # 如果创建了专属文件夹，图片最好也放在里面
+            if create_folder:
+                image_output_dir = os.path.join(final_output_dir, "images")
+                image_link_base = "images"
+            else:
+                 # 默认行为: 将图片放在输出根目录下的 extracted_images 文件夹中
+                 # 这样可以保持 output 目录的整洁，并且支持 relative path
+                 if root_output_dir:
+                     try:
+                         image_output_dir = os.path.join(root_output_dir, "extracted_images")
+                         # 注意: extract_content 会自动在 image_output_dir 后追加 pdf_name_no_ext
+                         # 所以这里我们只需要指向 extracted_images 根
+                         
+                         # 计算 image_link_base (相对路径)
+                         # image_link_base 应该是从 markdown 文件所在目录 (final_output_dir) 到 extracted_images 根目录的相对路径
+                         rel_path = os.path.relpath(image_output_dir, final_output_dir)
+                         image_link_base = rel_path.replace("\\", "/")
+                     except Exception:
+                         pass
             
         # 运行提取（异步函数的同步包装）
         # 为此进程创建一个新的事件循环
@@ -1206,13 +1223,15 @@ def _process_single_pdf_worker(args):
         loop.close()
         
         # 将结果写入文件
-        full_text = ""
-        for item in content_list:
-            if item.type == "text":
-                full_text += item.text
-                
-        with open(output_file_path, "w", encoding="utf-8") as f:
-            f.write(full_text)
+        # 如果是"仅提取图片"模式 (include_text=False, include_images=True)，则不写入 Markdown 文件
+        if include_text or (not include_images):
+            full_text = ""
+            for item in content_list:
+                if item.type == "text":
+                    full_text += item.text
+                    
+            with open(output_file_path, "w", encoding="utf-8") as f:
+                f.write(full_text)
             
         return (True, pdf_name, output_file_path, None)
         
@@ -1228,14 +1247,43 @@ async def batch_extract_pdf_content(
     use_local_images_only: bool = True,
     custom_output_dir: str = None,
     custom_image_output_dir: str = None,
-    skip_table_detection: bool = False
+    skip_table_detection: bool = False,
+    create_folder: bool = False,
+    preserve_structure: bool = True
 ):
     """
     批量处理指定目录下的PDF文件 (并行加速版)。
+    如果 custom_output_dir 为 None，默认输出到当前工作目录下的 'output' 文件夹。
+    create_folder: 如果为 True，将为每个 PDF 文件创建一个同名的子文件夹。
+    preserve_structure: 如果为 True (默认)，保持源文件的目录层级结构。如果为 False，所有文件将平铺到输出目录（可能存在同名覆盖风险）。
     """
     if not os.path.isdir(directory):
         return [types.TextContent(type="text", text=f"Error: 目录不存在 - {directory}")]
     
+    # 确定输出根目录和模式目录
+    root_output_base = custom_output_dir if custom_output_dir else os.getcwd()
+    base_output = os.path.join(root_output_base, "output")
+
+    if include_images and not include_text:
+        target_mode_dir = os.path.join(base_output, "output_only_image")
+    elif include_images:
+        if skip_table_detection:
+            target_mode_dir = os.path.join(base_output, "output_fast_with_image_no_table")
+        else:
+            target_mode_dir = os.path.join(base_output, "output_standard_with_image")
+    elif skip_table_detection:
+        target_mode_dir = os.path.join(base_output, "output_fast_no_image_and_table")
+    else:
+        target_mode_dir = os.path.join(base_output, "output_standard_no_image")
+    
+    # 使用计算出的目录
+    custom_output_dir = target_mode_dir
+        
+    # 确保输出目录存在
+    if custom_output_dir:
+         os.makedirs(custom_output_dir, exist_ok=True)
+ 
+     
     # 支持递归搜索
     search_path = os.path.join(directory, pattern)
     files = glob.glob(search_path, recursive=True)
@@ -1254,10 +1302,24 @@ async def batch_extract_pdf_content(
     tasks_args = []
     for pdf_path in files:
         if os.path.isfile(pdf_path):
+            target_output_dir = custom_output_dir
+            
+            if preserve_structure:
+                # Calculate output directory preserving structure
+                try:
+                    # relative path from source directory to the file's directory
+                    rel_path = os.path.relpath(os.path.dirname(pdf_path), directory)
+                except ValueError:
+                    # Fallback if on different drive or other issue
+                    rel_path = ""
+                
+                # Combine with custom output dir
+                target_output_dir = os.path.join(custom_output_dir, rel_path)
+            
             tasks_args.append((
                 pdf_path, format, include_text, include_images, 
-                use_local_images_only, custom_output_dir, custom_image_output_dir,
-                skip_table_detection
+                use_local_images_only, target_output_dir, custom_image_output_dir,
+                skip_table_detection, create_folder, custom_output_dir
             ))
     
     success_count = 0
@@ -1297,8 +1359,10 @@ async def batch_extract_tables(
         return [types.TextContent(type="text", text=f"Error: 目录不存在 - {directory}")]
         
     # 确定输出目录
-    if not output_dir:
-        output_dir = os.path.join(directory, "extracted_tables")
+    # 确定输出根目录
+    root_output_base = output_dir if output_dir else os.getcwd()
+    # 构建完整路径: root/output/output_only_table
+    output_dir = os.path.join(root_output_base, "output", "output_only_table")
     
     os.makedirs(output_dir, exist_ok=True)
     
@@ -1618,6 +1682,24 @@ async def handle_list_tools() -> list[types.Tool]:
                         "type": "boolean",
                         "default": True
                     },
+                    "custom_output_dir": {
+                        "type": "string",
+                        "description": "自定义输出目录（可选）"
+                    },
+                    "custom_image_output_dir": {
+                        "type": "string",
+                        "description": "自定义图片输出目录（可选）"
+                    },
+                    "create_folder": {
+                        "type": "boolean",
+                        "description": "是否为每个PDF创建单独的文件夹（默认false）。如果为true，将在输出目录下为每个PDF创建一个同名文件夹，并将Markdown和图片放入其中。",
+                        "default": False
+                    },
+                    "preserve_structure": {
+                        "type": "boolean",
+                        "description": "是否保持源文件的目录层级结构（默认true）。如果为false，所有文件将平铺到输出目录。",
+                        "default": True
+                    },
                     "skip_table_detection": {
                         "type": "boolean",
                         "description": "是否跳过表格检测（默认false）。设为true可大幅提升纯文本提取速度，但不会识别和格式化表格。",
@@ -1752,8 +1834,10 @@ async def handle_call_tool(
         custom_output_dir = arguments.get("custom_output_dir")
         custom_image_output_dir = arguments.get("custom_image_output_dir")
         skip_table_detection = arguments.get("skip_table_detection", False)
+        create_folder = arguments.get("create_folder", False)
+        preserve_structure = arguments.get("preserve_structure", True)
         return await batch_extract_pdf_content(
-            directory, pattern, format, include_text, include_images, use_local_images_only, custom_output_dir, custom_image_output_dir, skip_table_detection
+            directory, pattern, format, include_text, include_images, use_local_images_only, custom_output_dir, custom_image_output_dir, skip_table_detection, create_folder, preserve_structure
         )
 
     elif name == "batch_extract_tables":
