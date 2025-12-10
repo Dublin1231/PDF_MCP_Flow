@@ -1246,7 +1246,6 @@ async def batch_extract_pdf_content(
     include_images: bool = False,
     use_local_images_only: bool = True,
     custom_output_dir: str = None,
-    custom_image_output_dir: str = None,
     skip_table_detection: bool = False,
     create_folder: bool = False,
     preserve_structure: bool = True
@@ -1318,7 +1317,7 @@ async def batch_extract_pdf_content(
             
             tasks_args.append((
                 pdf_path, format, include_text, include_images, 
-                use_local_images_only, target_output_dir, custom_image_output_dir,
+                use_local_images_only, target_output_dir, None,
                 skip_table_detection, create_folder, custom_output_dir
             ))
     

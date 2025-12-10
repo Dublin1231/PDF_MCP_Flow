@@ -202,7 +202,6 @@ uv sync
     *   `output_standard_no_image`: 标准模式+纯文本 (**不含图片**，含表格)。
     *   `output_fast_no_image_and_table`: 极速模式+纯文本 (**不含图片，不含表格**)。
     *   `output_only_image`: 仅提取图片模式 (不生成 Markdown 文件，图片保存在 `output/output_only_image/extracted_images` 目录)。
-*   `custom_image_output_dir` (可选): 指定图片的输出根目录。如果不填，默认保存在输出目录下的 `extracted_images` 文件夹中。
 *   `format` (可选): 输出格式，支持 `markdown` (默认), `json`, `text`。
 *   `include_text` (可选): 是否提取文本，默认为 `true`。
 *   `include_images` (可选): 是否提取图片，默认为 `false`。
