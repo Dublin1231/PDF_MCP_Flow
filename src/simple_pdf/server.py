@@ -722,6 +722,36 @@ async def get_pdf_metadata(file_path: str):
 import json
 import glob
 
+def merge_rects(rects, threshold=10):
+    """合并重叠或相近的矩形"""
+    if not rects:
+        return []
+    processed_rects = [fitz.Rect(r) for r in rects]
+    merged = []
+    
+    while processed_rects:
+        current = processed_rects.pop(0)
+        has_overlap = True
+        while has_overlap:
+            has_overlap = False
+            i = 0
+            while i < len(processed_rects):
+                other = processed_rects[i]
+                expanded = fitz.Rect(current)
+                expanded.x0 -= threshold
+                expanded.y0 -= threshold
+                expanded.x1 += threshold
+                expanded.y1 += threshold
+                
+                if expanded.intersects(other):
+                    current = current | other
+                    processed_rects.pop(i)
+                    has_overlap = True
+                else:
+                    i += 1
+        merged.append(current)
+    return merged
+
 async def extract_content(file_path: str, page_range: str = "1", keyword: str = None, format: str = "text", include_text: bool = True, include_images: bool = False, use_local_images_only: bool = True, image_output_dir: str = None, image_link_base: str = None, skip_table_detection: bool = False):
     """
     提取PDF指定页面的文本和图片。
@@ -833,6 +863,7 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
             
             # 存储当前页的图片路径，用于插入到 Markdown
             page_image_paths = []
+            page_image_items = [] # 存储图片及其位置信息
             image_content_objects = []
 
             # 1. 先处理图片（保存并获取路径）
@@ -865,6 +896,21 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                             else:
                                 rel_path = f"extracted_images/{pdf_name_no_ext}/{img_filename}"
                             
+                            # 转义空格
+                            rel_path = rel_path.replace(" ", "%20")
+                            md_link = f"![Image]({rel_path})"
+
+                            # 获取图片位置并记录
+                            if format == 'markdown':
+                                rects = page.get_image_rects(xref)
+                                if rects:
+                                    for rect in rects:
+                                        page_image_items.append({
+                                            "y0": rect.y0,
+                                            "type": "image",
+                                            "content": md_link
+                                        })
+                            
                             # 记录 JSON 数据
                             img_info = {
                                 "filename": img_filename,
@@ -891,6 +937,71 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                         except Exception as img_err:
                             if format != 'json':
                                 result_content.append(types.TextContent(type="text", text=f"  Warning: Failed to extract image {j+1}: {img_err}\n"))
+
+            # 1.5 提取矢量图形（Vector Graphics）
+            if include_images:
+                try:
+                    drawings = page.get_drawings()
+                    if drawings:
+                        # 收集所有绘图的矩形
+                        drawing_rects = []
+                        page_rect = page.rect
+                        for draw in drawings:
+                            r = draw["rect"]
+                            # 过滤掉全页背景或极小的噪点
+                            if r.width > page_rect.width * 0.95 and r.height > page_rect.height * 0.95:
+                                continue
+                            if r.width < 5 and r.height < 5:
+                                continue
+                            drawing_rects.append(r)
+                        
+                        # 合并矩形
+                        merged_drawings = merge_rects(drawing_rects, threshold=15)
+                        
+                        # 处理合并后的矢量区域
+                        for k, rect in enumerate(merged_drawings):
+                            # 渲染为图片 (使用 alpha=True 保留透明度)
+                            pix = page.get_pixmap(clip=rect, alpha=True)
+                            
+                            # 过滤无效图片
+                            if pix.width < 10 and pix.height < 10:
+                                continue
+
+                            vec_filename = f"page_{page_num}_vec_{k+1}.png"
+                            vec_path = os.path.join(output_dir, vec_filename)
+                            
+                            pix.save(vec_path)
+                            
+                            # 记录路径
+                            page_image_paths.append(vec_filename)
+                            
+                            # 相对路径
+                            if image_link_base:
+                                rel_path = f"{image_link_base}/{pdf_name_no_ext}/{vec_filename}"
+                            else:
+                                rel_path = f"extracted_images/{pdf_name_no_ext}/{vec_filename}"
+                            rel_path = rel_path.replace(" ", "%20")
+                            md_link = f"![Vector]({rel_path})"
+                            
+                            page_image_items.append({
+                                "y0": rect.y0,
+                                "type": "image",
+                                "content": md_link
+                            })
+                            
+                            # JSON 记录
+                            if format == 'json':
+                                page_data["images"].append({
+                                    "filename": vec_filename,
+                                    "local_path": vec_path,
+                                    "rel_path": rel_path,
+                                    "type": "vector_graphic"
+                                })
+
+                except Exception as vec_err:
+                     if format != 'json':
+                        # 忽略矢量提取错误
+                        pass
 
             # 2. 提取文本
             if include_text:
@@ -937,6 +1048,11 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                         continue
                     if block_text.isdigit() and (abs(size - body_size) > 1 or size < body_size):
                         continue
+                    
+                    # 修正: 如果正文大小异常大（可能因为页面字数少），强制设为默认值
+                    if body_size > 20:
+                        body_size = 12.0
+                        
                     prefix = ""
                     is_header = False
                     if format == 'markdown':
@@ -981,6 +1097,9 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                                     should_merge = False
                                 if is_list_item_start(block_text):
                                     should_merge = False
+                                # 如果是大字体（标题类），不合并
+                                if size > body_size + 2:
+                                    should_merge = False
                         if should_merge:
                             if is_cjk(current_para_text[-1]) and is_cjk(block_text[0]):
                                 current_para_text += block_text
@@ -999,7 +1118,7 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                 
                 flush_para()
 
-                # 2.3 集成表格
+                # 2.3 集成表格和图片
                 final_items = processed_paragraphs
                 for table in tables:
                     md_table = table_to_markdown(table)
@@ -1009,6 +1128,10 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                             "type": "table",
                             "content": md_table
                         })
+                
+                # 集成图片 (Markdown 模式)
+                if format == 'markdown' and page_image_items:
+                    final_items.extend(page_image_items)
                 
                 # 2.4 排序和拼接
                 final_items.sort(key=lambda x: x["y0"])
@@ -1021,7 +1144,7 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                              full_page_text += "\n\n"
                         full_page_text += content
                     else:
-                        # 表格
+                        # 表格或图片
                         full_page_text += "\n\n" + content + "\n\n"
 
                 safe_text = full_page_text.encode('utf-8', errors='replace').decode('utf-8')
@@ -1029,19 +1152,7 @@ async def extract_content(file_path: str, page_range: str = "1", keyword: str = 
                 # 记录纯文本到 JSON
                 page_data["text"] = safe_text
                 
-                # 在文本末尾追加图片引用 (Markdown 模式)
-                if format == 'markdown' and page_image_paths:
-                    safe_text += "\n\n"
-                    for img_file in page_image_paths:
-                        # 引用路径
-                        if image_link_base:
-                            rel_path = f"{image_link_base}/{pdf_name_no_ext}/{img_file}"
-                        else:
-                            rel_path = f"extracted_images/{pdf_name_no_ext}/{img_file}"
-                        
-                        # 转义空格
-                        rel_path = rel_path.replace(" ", "%20")
-                        safe_text += f"![Image]({rel_path})\n"
+                # (已移除旧的图片追加逻辑)
 
                 if format == 'markdown':
                     if skip_table_detection:
