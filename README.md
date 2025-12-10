@@ -52,7 +52,7 @@
 
 ### 1. 克隆项目
 ```bash
-git clone git@github.com:Dublin1231/PDF_MCP_Flow.git
+git clone https://github.com/Dublin1231/PDF_MCP_Flow.git
 cd mcp-pdf-flow
 ```
 

@@ -50,7 +50,7 @@ This project uses `uv` for package management.
 
 ### 1. Clone the Project
 ```bash
-git clone git@github.com:Dublin1231/PDF_MCP_Flow.git
+git clone https://github.com/Dublin1231/PDF_MCP_Flow.git
 cd mcp-pdf-flow
 ```
 
