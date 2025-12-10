@@ -36,7 +36,6 @@
     *   **Word 转 PDF**：支持将 Word 文档转换为 PDF 文件。
         *   *自动适配*：优先使用 Microsoft Word，若未安装则自动回退到 WPS Office。
 *   **⚙️ 灵活提取**：支持提取全部页面、指定页码范围（如 `1`, `1-5`）或按关键词智能搜索。
-*   **📂 批量处理**：支持对指定目录下的 PDF 文件进行批量提取，自动生成 Markdown 和图片，并保持目录结构整洁。
 *   **ℹ️ 元数据获取**：支持获取 PDF 标题、作者、页数及**目录结构 (TOC)**。
 
 ## 🛠️ 环境要求
@@ -53,7 +52,7 @@
 
 ### 1. 克隆项目
 ```bash
-git clone https://github.com/Dublin1231/mcp-pdf-flow.git
+git clone git@github.com:Dublin1231/PDF_MCP_Flow.git
 cd mcp-pdf-flow
 ```
 

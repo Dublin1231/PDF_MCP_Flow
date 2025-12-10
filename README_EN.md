@@ -50,7 +50,7 @@ This project uses `uv` for package management.
 
 ### 1. Clone the Project
 ```bash
-git clone https://github.com/Dublin1231/mcp-pdf-flow.git
+git clone git@github.com:Dublin1231/PDF_MCP_Flow.git
 cd mcp-pdf-flow
 ```
 
@@ -127,9 +127,9 @@ Add the following content (Please **ensure** to change the path to your actual l
 > **Claude**: (Automatically calls the `batch_extract_pdf_content` tool)
 
 #### 5. Batch Process with Custom Output Directories
-> **User**: "Batch process PDFs in `D:\Docs`, save Markdown to `D:\Output\MD` and images to `D:\Output\Images`."
+> **User**: "Batch process PDFs in `D:\Docs`, save Markdown to `D:\Output\MD`."
 >
-> **Claude**: (Calls `batch_extract_pdf_content` with `custom_output_dir="D:\\Output\\MD"`, `custom_image_output_dir="D:\\Output\\Images"`)
+> **Claude**: (Calls `batch_extract_pdf_content` with `custom_output_dir="D:\\Output\\MD"`)
 
 #### 6. Batch Process with Flat Output (No Directory Structure)
 > **User**: "Extract all PDFs from subfolders in `D:\Docs` and put them all into `D:\All_MDs` without creating subfolders."
@@ -198,7 +198,6 @@ Batch extracts PDF files in a specified directory.
     *   `output_standard_no_image`: Standard mode + Plain text (**No images**, includes tables).
     *   `output_fast_no_image_and_table`: Fast mode + Plain text (**No images, No tables**).
     *   `output_only_image`: Image extraction only mode (No Markdown file generated, images saved in `output/output_only_image/extracted_images`).
-*   `custom_image_output_dir` (Optional): Specifies the root output directory for images. If omitted, saves in an `extracted_images` folder within the output directory.
 *   `format` (Optional): Output format, default is `"markdown"`.
 *   `include_text` (Optional): Whether to extract text, default is `true`.
 *   `include_images` (Optional): Whether to extract images, default is `false`.
